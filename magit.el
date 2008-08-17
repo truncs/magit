@@ -338,6 +338,9 @@
 	((string= event "killed\n")
 	 (message "Git was killed.")
 	 (setq magit-process nil))
+	((string-match "exited abnormally with code 1" event)
+	 (message "Git finished - workdir dirty.")
+	 (setq magit-process nil))
 	((string-match "exited abnormally" event)
 	 (message "Git failed.")
 	 (setq magit-process nil)
@@ -1071,5 +1074,6 @@ pushed.
   (interactive)
   (let ((info (get-char-property (point) 'magit-info)))
     (message "Thing: %s" info)))
+
 
 (provide 'magit)

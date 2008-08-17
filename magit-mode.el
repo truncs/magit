@@ -38,7 +38,7 @@
 (defun magit-unstage-current-file ()
   "UnState the current file."
   (interactive)
-  (error "This command is currently NOT usable!")
+  ;;  (error "This command is currently NOT usable!")
   (unless (buffer-file-name)
     (error "Current buffer has no associated file!"))
   (magit-run "git" "reset" "-q" "HEAD" "--"
