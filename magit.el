@@ -566,8 +566,10 @@ pushed.
   (save-some-buffers)
   (let* ((topdir (magit-get-top-dir dir))
 	 (buf (or (magit-find-status-buffer topdir)
-		  (create-file-buffer (file-name-nondirectory
-				       (directory-file-name topdir))))))
+		  (get-buffer-create
+		   (concat "*" (file-name-nondirectory
+				(directory-file-name topdir))
+			   "@git*")))))
     (switch-to-buffer buf)
     (magit-mode-init topdir 'status)
     (magit-update-status buf)))
