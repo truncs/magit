@@ -118,12 +118,11 @@ in current buffer."
     (if (boundp 'vc-mode)
 	(set 'vc-mode nil))))
 
+;;;###autoload
 (defun magit-minor-mode-find-file-hook ()
   (if (magit-is-in-git-working-dir)
       (magit-minor-mode 1)
     (magit-minor-mode -1)))
-
-(add-hook 'find-file-hook 'magit-minor-mode-find-file-hook)
 
 (or (assq 'magit-minor-mode minor-mode-alist)
     (setq minor-mode-alist
