@@ -103,6 +103,14 @@
   "`magit-mode' face used to highlight diff deleted lines."
   :group 'magit)
 
+(defface magit-diff-hunk-face
+  '((((class color) (background light))
+     :background "grey85")
+    (((class color) (background dark))
+     :background "grey45"))
+  "`magit-mode' face used to highlight hunk header."
+  :group 'magit)
+
 ;;; Utilities
 
 (defun magit-goto-line (line)
@@ -556,7 +564,8 @@ pushed.
 	       (magit-wash-diff-propertize-hunk head-seq hunk-seq
 						head-beg head-end hunk-beg)
 	       (setq hunk-seq (+ hunk-seq 1))
-	       (setq hunk-beg (point)))
+	       (setq hunk-beg (point))
+	       (magit-put-line-property 'face 'magit-diff-hunk-face))
 	      ((looking-at "^ ")
 	       (magit-put-line-property 'face 'magit-diff-none-face))
 	      ((string-match "\\+" prefix)
