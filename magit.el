@@ -42,6 +42,67 @@
 (require 'cl)
 (require 'parse-time)
 
+(defgroup magit nil
+  "Controlling Git from emacs."
+  :prefix "magit-"
+  :group 'tools)
+
+(defface magit-header-face
+  '((t :weight bold :inherit variable-pitch :height 1.3))
+  "`magit-mode' face used to highlight header lines."
+  :group 'magit)
+
+(defface magit-section-title-face
+  '((((class color) (background light))
+     :foreground "DarkGoldenrod" :inherit magit-header-face :height 1.1)
+    (((class color) (background dark))
+     :foreground "PaleGreen" :inherit magit-header-face :height 1.1)
+    (t :weight bold))
+  "`magit-mode' face used to highlight section title."
+  :group 'magit)
+
+(defface magit-branch-face
+  '((((class color) (background light))
+     :foreground "SkyBlue" :inherit magit-header-face)
+    (((class color) (background dark))
+     :foreground "Yellow" :inherit magit-header-face)
+    (t :weight bold))
+  "`magit-mode' face used to highlight the current branch."
+  :group 'magit)
+
+(defface magit-diff-file-header-face
+  '((((class color) (background light))
+     :foreground "SlateBlue" :inherit magit-header-face)
+    (((class color) (background dark))
+     :foreground "LightSlateBlue" :inherit magit-header-face)
+    (t :weight bold))
+  "`magit-mode' face used to highlight diff header lines."
+  :group 'magit)
+
+(defface magit-diff-add-face
+  '((((class color) (background light))
+     :foreground "blue1")
+    (((class color) (background dark))
+     :foreground "white"))
+  "`magit-mode' face used to highlight diff added line."
+  :group 'magit)
+
+(defface magit-diff-none-face
+  '((((class color) (background light))
+     :foreground "grey")
+    (((class color) (background dark))
+     :foreground "grey30"))
+  "`magit-mode' face used to highlight diff unchanged lines."
+  :group 'magit)
+
+(defface magit-diff-del-face
+  '((((class color) (background light))
+     :foreground "red")
+    (((class color) (background dark))
+     :foreground "OrangeRed"))
+  "`magit-mode' face used to highlight diff deleted lines."
+  :group 'magit)
+
 ;;; Utilities
 
 (defun magit-goto-line (line)
@@ -189,7 +250,7 @@
 (defun magit-insert-section (section title washer cmd &rest args)
   (let ((section-beg (point)))
     (if title
-	(insert (propertize title 'face 'bold) "\n"))
+	(insert (propertize title 'face 'magit-section-title-face) "\n"))
     (let* ((beg (point))
 	   (status (apply 'call-process cmd nil t nil args))
 	   (end (point)))
@@ -476,6 +537,7 @@ pushed.
       (let ((prefix (buffer-substring-no-properties
 		     (point) (min (+ (point) n-files) (point-max)))))
 	(cond ((looking-at "^diff")
+	       (magit-put-line-property 'face 'magit-diff-file-header-face)
 	       (magit-wash-diff-propertize-diff head-seq head-beg head-end)
 	       (magit-wash-diff-propertize-hunk head-seq hunk-seq
 						head-beg head-end hunk-beg)
@@ -492,10 +554,12 @@ pushed.
 						head-beg head-end hunk-beg)
 	       (setq hunk-seq (+ hunk-seq 1))
 	       (setq hunk-beg (point)))
+	      ((looking-at "^ ")
+	       (magit-put-line-property 'face 'magit-diff-none-face))
 	      ((string-match "\\+" prefix)
-	       (magit-put-line-property 'face '(:foreground "blue1")))
+	       (magit-put-line-property 'face 'magit-diff-add-face))
 	      ((string-match "-" prefix)
-	       (magit-put-line-property 'face '(:foreground "red")))))
+	       (magit-put-line-property 'face 'magit-diff-del-face))))
       (forward-line)
       (beginning-of-line))
     (magit-wash-diff-propertize-diff head-seq head-beg head-end)
@@ -514,7 +578,8 @@ pushed.
 	    (insert (format "Remote: %s %s\n"
 			    remote (magit-get "remote" remote "url"))))
 	(insert (format "Local:  %s %s\n"
-			(propertize (or branch "(detached)") 'face 'bold)
+			(propertize (or branch "(detached)")
+				    'face 'magit-branch-face)
 			(abbreviate-file-name default-directory)))
 	(insert
 	 (format "Head:   %s\n"
