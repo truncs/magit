@@ -700,6 +700,19 @@ pushed.
 	  (forward-line))
 	target))))
 
+(defun magit-apply-hunk-to-index (info &optional reverse-p)
+  "Apply a patch hunk to the index."
+  (let ((diff (concat (buffer-substring-no-properties (elt info 1) (elt info 2))
+		      (buffer-substring-no-properties (elt info 3) (elt info 4)))))
+    (with-temp-buffer
+      (insert diff)
+      (if reverse-p
+	  (call-process-region (point-min) (point) "git" nil nil nil
+			       "apply" "--cached" "--reverse")
+	(call-process-region (point-min) (point) "git" nil nil nil
+			     "apply" "--cached"))
+      (magit-update-status (magit-find-status-buffer)))))
+
 (defun magit-stage-thing-at-point ()
   "Add the hunk or file under point to the staging area."
   (interactive)
@@ -712,8 +725,7 @@ pushed.
 	   (if (magit-hunk-is-conflict-p info)
 	       (error
 "Can't stage individual resolution hunks.  Please stage the whole file."))
-	   (magit-write-hunk-patch info ".git/magit-tmp")
-	   (magit-run "git" "apply" "--cached" ".git/magit-tmp"))
+	   (magit-apply-hunk-to-index info))
 	  ((diff)
 	   (magit-run "git" "add" (magit-diff-info-file info)))))))
 
@@ -724,8 +736,7 @@ pushed.
     (if info
 	(case (car info)
 	  ((hunk)
-	   (magit-write-hunk-patch info ".git/magit-tmp")
-	   (magit-run "git" "apply" "--cached" "--reverse" ".git/magit-tmp"))
+	   (magit-apply-hunk-to-index info t))
 	  ((diff)
 	   (magit-run "git" "reset" "HEAD" (magit-diff-info-file info)))))))
 
