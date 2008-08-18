@@ -545,7 +545,10 @@ pushed.
     (save-excursion
       (let ((hunk-end (point)))
 	(goto-char hunk-beg)
-	(put-text-property hunk-beg (1- hunk-end) 
+	(put-text-property (if (get-text-property (1- hunk-beg)
+						  'invisible)
+			       hunk-beg (1- hunk-beg))
+			   (1- hunk-end) 
 			   'invisible head-beg)
 	(put-text-property (line-end-position) (1- hunk-end)
 			   'invisible (list head-beg hunk-beg))))
