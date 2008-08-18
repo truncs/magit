@@ -139,4 +139,7 @@ in current buffer."
     (set 'vc-handled-backends
 	 (delq 'Git (symbol-value 'vc-handled-backends))))
 
+
+
+
 (provide 'magit-mode)

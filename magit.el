@@ -383,6 +383,7 @@
     (define-key map (kbd "x") 'magit-reset-head)
     (define-key map (kbd "X") 'magit-reset-working-tree)
     (define-key map (kbd "RET") 'magit-visit-thing-at-point)
+    (define-key map (kbd "SPC") 'magit-toggle-hs-thing)
     (define-key map (kbd "b") 'magit-checkout)
     (define-key map (kbd "B") 'magit-create-branch)
     (define-key map (kbd "m") 'magit-manual-merge)
@@ -406,6 +407,9 @@
 (defvar magit-submode nil)
 (make-variable-buffer-local 'magit-submode)
 (put 'magit-submode 'permanent-local t)
+
+(defvar magit-hunk-positions nil)
+(defvar magit-diff-positions nil)
 
 (defun magit-mode ()
 ;;; XXX - the formatting is all screwed up because of the \\[...]
@@ -495,6 +499,7 @@ pushed.
 	mode-line-process ""
 	truncate-lines t)
   (use-local-map magit-mode-map)
+  (setq buffer-invisibility-spec ())
   (run-mode-hooks 'magit-mode-hook))
 
 (defun magit-mode-init (dir submode)
@@ -524,6 +529,10 @@ pushed.
       (put-text-property head-beg head-end
 			 'magit-info (list 'diff
 					   head-beg (point)))
+      (put-text-property (save-excursion (goto-char head-beg)
+					 (line-end-position))
+			 head-end 'invisible head-beg)
+      (add-to-list 'magit-diff-positions head-beg t)
       (magit-mark-subsection head-beg head-end head-seq 1))))
 
 (defun magit-wash-diff-propertize-hunk (head-seq hunk-seq
@@ -531,8 +540,17 @@ pushed.
   (when hunk-beg
     (put-text-property hunk-beg (point)
 		       'magit-info (list 'hunk
-					head-beg head-end
-					hunk-beg (point)))
+					 head-beg head-end
+					 hunk-beg (point)))
+    (save-excursion
+      (let ((hunk-end (point)))
+	(goto-char hunk-beg)
+	(put-text-property hunk-beg (1- hunk-end) 
+			   'invisible head-beg)
+	(put-text-property (line-end-position) (1- hunk-end)
+			   'invisible (list head-beg hunk-beg))))
+    
+    (add-to-list 'magit-hunk-positions hunk-beg t)
     (magit-mark-subsection hunk-beg (point) head-seq 1)
     (magit-mark-subsection hunk-beg (point) hunk-seq 2)))
 
@@ -578,12 +596,95 @@ pushed.
     (magit-wash-diff-propertize-hunk head-seq hunk-seq
 				     head-beg head-end hunk-beg)))
 
+
+(defun magit-hs-diff-hide-show (what-to-do diff-pos hunk-pos)
+  (let ((show-all-diffs (mapcar (lambda (pos) (cons pos t))
+				 magit-diff-positions))
+	(show-all-hunks (mapcar (lambda (pos) (cons pos t))
+				 magit-hunk-positions)))
+    (cond ((eq what-to-do t)		; show everything
+	   (setq buffer-invisibility-spec nil))
+	  ((null what-to-do)		; hide everything
+	   (setq buffer-invisibility-spec
+		 (nconc show-all-diffs show-all-hunks)))
+	  ((eq what-to-do 'hide-all-diffs)
+	   (mapc (lambda (pair)
+			 (add-to-list 'buffer-invisibility-spec pair))
+		 show-all-diffs))
+	  ((eq what-to-do 'hide-all-hunks)
+	   (mapc (lambda (pair)
+			 (add-to-list 'buffer-invisibility-spec pair))
+		 show-all-hunks))
+	  ((eq what-to-do 'show-all-diffs)
+	   (setq buffer-invisibility-spec
+		 (delq nil
+		       (mapcar (lambda (pair)
+				 (if (memq (car pair) 
+					   magit-diff-positions)
+				     nil
+				   pair))
+			       buffer-invisibility-spec))))
+	  ((eq what-to-do 'show-all-hunks)
+	   (setq buffer-invisibility-spec
+		 (delq nil
+		       (mapcar (lambda (pair)
+				 (if (memq (car pair) 
+					   magit-hunk-positions)
+				     nil
+				   pair))
+			       buffer-invisibility-spec))))
+	  ((eq what-to-do 'show-current-diff)
+	   (setq buffer-invisibility-spec
+		 (delete (cons diff-pos t) buffer-invisibility-spec)))
+	  ((eq what-to-do 'show-current-hunk)
+	   (setq buffer-invisibility-spec
+		 (delete (cons hunk-pos t) buffer-invisibility-spec)))
+	  ((eq what-to-do 'hide-current-diff)
+	   (add-to-list 'buffer-invisibility-spec (cons diff-pos t)))
+	  ((eq what-to-do 'hide-current-hunk)
+	   (add-to-list 'buffer-invisibility-spec (cons hunk-pos t)))))
+  (force-window-update (current-buffer)))
+
+(defun magit-toggle-hs-thing (&optional all-p)
+  (interactive "P")
+  (let* ((info (get-char-property (point) 'magit-info))
+	 (hunk-pos (and (eq (car info) 'hunk) (nth 3 info)))
+	 (diff-pos (cond ((eq (car info) 'hunk) (nth 1 info))
+			 ((eq (car info) 'diff) (nth 1 info))
+			 (t nil)))
+	 (diff-hidden (and diff-pos
+			   (assq diff-pos buffer-invisibility-spec)))
+	 (hunk-hidden (and hunk-pos
+			   (assq hunk-pos buffer-invisibility-spec))))
+
+    (unless (or diff-pos hunk-pos)
+      (error "No diff here!"))
+
+    (magit-hs-diff-hide-show (if all-p
+				 (if hunk-pos
+				     (if hunk-hidden
+					 'show-current-hunk 
+				       'hide-all-hunks)
+				   (if diff-hidden
+				       'show-all-diffs
+				     'hide-all-diffs))
+			       (if hunk-pos
+				   (if hunk-hidden
+				       'show-current-hunk
+				     'hide-current-hunk)
+				 (if diff-hidden
+				     'show-current-diff
+				   'hide-current-diff)))
+			     diff-pos hunk-pos)))
+
 (defun magit-update-status (buf)
   (with-current-buffer buf
     (let ((old-line (line-number-at-pos))
 	  (old-section (magit-section-at-point))
 	  (inhibit-read-only t))
       (erase-buffer)
+      (set (make-local-variable 'magit-diff-positions) nil)
+      (set (make-local-variable 'magit-hunk-positions) nil)
       (let* ((branch (magit-get-current-branch))
 	     (remote (and branch (magit-get "branch" branch "remote"))))
 	(if remote
@@ -1005,6 +1106,9 @@ pushed.
 	  (magit-mode-init dir 'diff)
 	  (let ((inhibit-read-only t))
 	    (erase-buffer)
+	    (setq buffer-invisibility-spec nil)
+	    (set (make-local-variable 'magit-diff-positions) nil)
+	    (set (make-local-variable 'magit-hunk-positions) nil)
 	    (magit-insert-section 'diff 
 				  (magit-rev-range-describe range "Changes")
 				  'magit-wash-diff
@@ -1094,6 +1198,5 @@ pushed.
   (interactive)
   (let ((info (get-char-property (point) 'magit-info)))
     (message "Thing: %s" info)))
-
 
 (provide 'magit)
