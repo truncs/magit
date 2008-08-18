@@ -359,6 +359,9 @@
     (define-key map (kbd "P") 'magit-push)
     (define-key map (kbd "c") 'magit-log-edit)
     (define-key map (kbd "C") 'magit-add-log)
+    (define-key map (kbd "q") 'magit-quit)
+    (define-key map (kbd "SPC") 'scroll-up)
+    (define-key map (kbd "DEL") 'scroll-down)
     (define-key map (kbd "$") 'magit-display-process)
     map))
 
