@@ -666,7 +666,7 @@ pushed.
     (magit-hs-diff-hide-show (if all-p
 				 (if hunk-pos
 				     (if hunk-hidden
-					 'show-current-hunk 
+					 'show-all-hunks
 				       'hide-all-hunks)
 				   (if diff-hidden
 				       'show-all-diffs

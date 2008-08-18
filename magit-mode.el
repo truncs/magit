@@ -92,7 +92,6 @@
     (pop-to-buffer buf)))
 
 (defvar magit-minor-mode nil)
-
 (defvar magit-minor-mode-map (make-sparse-keymap "MaGit"))
 
 (let ((map magit-minor-mode-map))
@@ -103,8 +102,7 @@
   (define-key map (kbd "C-c C-v u")   'magit-cancel-modifications)
   (define-key map (kbd "C-c C-v o")   'magit-current-file-other-version-other-window)
   (define-key map (kbd "C-c C-v C-c") 'magit-log-edit)
-  (define-key map (kbd "C-c C-v C-h") 'magit-browse-branch-log)
-  )
+  (define-key map (kbd "C-c C-v C-h") 'magit-browse-branch-log))
 
 ;;;###autoload
 (defun magit-minor-mode (&optional arg)
