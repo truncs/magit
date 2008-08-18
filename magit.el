@@ -1107,25 +1107,26 @@ pushed.
 
 ;;; Diffing
 
+(defun magit-do-diff (desc &rest args)
+  (let* ((dir default-directory)
+	 (buf (get-buffer-create "*magit-diff*")))
+    (display-buffer buf)
+    (save-excursion
+      (set-buffer buf)
+      (magit-mode-init dir 'diff)
+      (let ((inhibit-read-only t))
+	(erase-buffer)
+	(setq buffer-invisibility-spec nil)
+	(set (make-local-variable 'magit-diff-positions) nil)
+	(set (make-local-variable 'magit-hunk-positions) nil)
+	(apply 'magit-insert-section
+	       'diff desc 'magit-wash-diff "git" "diff" args)))))
+
 (defun magit-diff (range)
   (interactive (list (magit-read-rev-range "Diff")))
   (if range
-      (let* ((dir default-directory)
-	     (args (magit-rev-range-to-git range))
-	     (buf (get-buffer-create "*magit-diff*")))
-	(display-buffer buf)
-	(save-excursion
-	  (set-buffer buf)
-	  (magit-mode-init dir 'diff)
-	  (let ((inhibit-read-only t))
-	    (erase-buffer)
-	    (setq buffer-invisibility-spec nil)
-	    (set (make-local-variable 'magit-diff-positions) nil)
-	    (set (make-local-variable 'magit-hunk-positions) nil)
-	    (magit-insert-section 'diff 
-				  (magit-rev-range-describe range "Changes")
-				  'magit-wash-diff
-				  "git" "diff" args))))))
+      (magit-do-diff (magit-rev-range-describe range "Changes")
+		     (magit-rev-range-to-git range))))
 
 (defun magit-diff-working-tree (rev)
   (interactive (list (magit-read-rev "Diff with")))

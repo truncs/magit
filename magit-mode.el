@@ -49,10 +49,12 @@
   (interactive "P")
   (unless (buffer-file-name)
     (error "Current buffer has no associated file!"))
-  (if ask-p
-      (magit-show-diff (magit-read-rev "Diff against: " "HEAD")
-		       (file-name-nondirectory (buffer-file-name)))
-    (magit-show-diff (file-name-nondirectory (buffer-file-name)))))
+  (let* ((rev (if ask-p (magit-read-rev "Diff against: " "HEAD") "Stage"))
+	 (file (file-name-nondirectory (buffer-file-name)))
+	 (desc (format "%s vs %s" file rev)))
+    (if ask-p
+	(magit-do-diff desc rev "--" file)
+      (magit-do-diff desc "--" file))))
 
 (defun magit-cancel-modifications (&optional from-head)
   "Cancel modifications made to the current file."
