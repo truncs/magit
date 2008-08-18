@@ -63,9 +63,9 @@
 
 (defface magit-branch-face
   '((((class color) (background light))
-     :foreground "SkyBlue" :inherit magit-header-face)
+     :foreground "SkyBlue" :inherit magit-header-face :height 1.4)
     (((class color) (background dark))
-     :foreground "Yellow" :inherit magit-header-face)
+     :foreground "Yellow" :inherit magit-header-face :height 1.4)
     (t :weight bold))
   "`magit-mode' face used to highlight the current branch."
   :group 'magit)
@@ -568,8 +568,10 @@ pushed.
     (while (not (eobp))
       (let ((prefix (buffer-substring-no-properties
 		     (point) (min (+ (point) n-files) (point-max)))))
-	(cond ((looking-at "^diff")
-	       (magit-put-line-property 'face 'magit-diff-file-header-face)
+	(cond ((looking-at "^diff --git a/\\(.+\\) b/")
+	       (magit-put-line-property
+		'display (propertize (match-string 1)
+				     'face 'magit-diff-file-header-face))
 	       (magit-wash-diff-propertize-diff head-seq head-beg head-end)
 	       (magit-wash-diff-propertize-hunk head-seq hunk-seq
 						head-beg head-end hunk-beg)
@@ -588,6 +590,14 @@ pushed.
 	       (setq hunk-beg (point))
 	       (magit-put-line-property 'face 'magit-diff-hunk-face))
 	      ((looking-at "^ ")
+	       (magit-put-line-property 'face 'magit-diff-none-face))
+	      ((looking-at "^index \\(.+\\)$")
+	       (put-text-property (1- (match-beginning 0)) (match-end 0)
+				  'display
+				  (propertize (concat "\t-- "
+						      (match-string 1))
+					      'face
+					      'magit-diff-none-face))
 	       (magit-put-line-property 'face 'magit-diff-none-face))
 	      ((string-match "\\+" prefix)
 	       (magit-put-line-property 'face 'magit-diff-add-face))
