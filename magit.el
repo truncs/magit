@@ -1064,6 +1064,7 @@ pushed.
       (setq default-directory dir)
       (let ((inhibit-read-only t))
 	(erase-buffer)
+	(setq buffer-invisibility-spec nil)
 	(magit-insert-section 'commit nil 'magit-wash-diff
 			      "git" "log" "--max-count=1" "--cc" "-p"
 			      commit)))))

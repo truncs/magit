@@ -77,11 +77,10 @@
     (error "Current buffer has no associated file!"))
   (let* ((mode major-mode)
 	 (rev (magit-read-rev "show version: " "master"))
-	 (canon-name (substring
-		      (shell-command-to-string
-		       (concat "git ls-files --full-name -- "
-			       (buffer-file-name)))
-		      0 -1))
+	 (canon-name (car (split-string
+			   (shell-command-to-string
+			    (concat "git ls-files --full-name -- "
+				    (buffer-file-name))))))
 	 (git-name (concat rev ":" canon-name))
 	 (buf (get-buffer-create (concat "*" git-name "*"))))
     (with-current-buffer buf
@@ -104,7 +103,7 @@
   (define-key map (kbd "C-c C-v u")   'magit-cancel-modifications)
   (define-key map (kbd "C-c C-v o")   'magit-current-file-other-version-other-window)
   (define-key map (kbd "C-c C-v C-c") 'magit-log-edit)
-  (define-key map (kbd "C-c C-v C-h") 'magit-browse-branch-log))
+  (define-key map (kbd "C-c C-v h")   'magit-browse-branch-log))
 
 ;;;###autoload
 (defun magit-minor-mode (&optional arg)
