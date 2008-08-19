@@ -424,7 +424,7 @@
     (define-key map (kbd "x") 'magit-reset-head)
     (define-key map (kbd "X") 'magit-reset-working-tree)
     (define-key map (kbd "RET") 'magit-visit-thing-at-point)
-    (define-key map (kbd "SPC") 'magit-toggle-hs-thing)
+    (define-key map (kbd "h") 'magit-toggle-hs-thing)
     (define-key map (kbd "b") 'magit-checkout)
     (define-key map (kbd "B") 'magit-create-branch)
     (define-key map (kbd "m") 'magit-manual-merge)
