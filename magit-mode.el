@@ -51,7 +51,7 @@
   (interactive "P")
   (unless (buffer-file-name)
     (error "Current buffer has no associated file!"))
-  (let* ((rev (if ask-p (magit-read-rev "Diff against: " "HEAD") "Stage"))
+  (let* ((rev (if ask-p (magit-read-rev "Diff against: " "HEAD") "Staging"))
 	 (file (file-name-nondirectory (buffer-file-name)))
 	 (desc (format "%s vs %s" file rev)))
     (if ask-p
@@ -105,7 +105,7 @@
   (define-key map (kbd "C-c C-v u")   'magit-cancel-modifications)
   (define-key map (kbd "C-c C-v o")   'magit-current-file-other-version-other-window)
   (define-key map (kbd "C-c C-v C-c") 'magit-log-edit)
-  (define-key map (kbd "C-c C-v h")   'magit-browse-branch-log))
+  (define-key map (kbd "C-c C-v h")   'magit-log-head))
 
 ;;;###autoload
 (defun magit-minor-mode (&optional arg)

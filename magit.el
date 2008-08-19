@@ -42,6 +42,8 @@
 (require 'cl)
 (require 'parse-time)
 
+;;; Customizations
+
 (defgroup magit nil
   "Controlling Git from emacs."
   :prefix "magit-"
@@ -110,6 +112,13 @@
      :background "grey45"))
   "`magit-mode' face used to highlight hunk header."
   :group 'magit)
+
+(defcustom magit-diff-init-hiding-mode nil
+  "Initial hiding mode for diff results."
+  :group 'magit
+  :type '(choice :tag "Initial Hiding Mode"
+		 (const :tag "Hide Nothing" nil)
+		 (const :tag "Hide Everything" t)))
 
 ;;; Utilities
 
@@ -499,7 +508,7 @@ pushed.
 	mode-line-process ""
 	truncate-lines t)
   (use-local-map magit-mode-map)
-  (setq buffer-invisibility-spec ())
+  (setq buffer-invisibility-spec nil)
   (run-mode-hooks 'magit-mode-hook))
 
 (defun magit-mode-init (dir submode)
@@ -615,9 +624,9 @@ pushed.
 				 magit-diff-positions))
 	(show-all-hunks (mapcar (lambda (pos) (cons pos t))
 				 magit-hunk-positions)))
-    (cond ((eq what-to-do t)		; show everything
+    (cond ((null what-to-do)		; hide nothing
 	   (setq buffer-invisibility-spec nil))
-	  ((null what-to-do)		; hide everything
+	  ((eq what-to-do t)		; hide everthing
 	   (setq buffer-invisibility-spec
 		 (nconc show-all-diffs show-all-hunks)))
 	  ((eq what-to-do 'hide-all-diffs)
@@ -737,6 +746,7 @@ pushed.
 				  (format "%s/%s..HEAD" remote branch))))
       (magit-goto-line old-line)
       (magit-goto-section old-section))
+    (magit-hs-diff-hide-show magit-diff-init-hiding-mode nil nil)
     (magit-refresh-marks-in-buffer buf)))
 
 (defun magit-find-buffer (submode &optional dir)
@@ -1067,7 +1077,8 @@ pushed.
 	(setq buffer-invisibility-spec nil)
 	(magit-insert-section 'commit nil 'magit-wash-diff
 			      "git" "log" "--max-count=1" "--cc" "-p"
-			      commit)))))
+			      commit)
+	(magit-hs-diff-hide-show magit-diff-init-hiding-mode nil nil)))))
 
 (defun magit-quit ()
   "Bury the current buffer."
@@ -1121,7 +1132,8 @@ pushed.
 	(set (make-local-variable 'magit-diff-positions) nil)
 	(set (make-local-variable 'magit-hunk-positions) nil)
 	(apply 'magit-insert-section
-	       'diff desc 'magit-wash-diff "git" "diff" args)))))
+	       'diff desc 'magit-wash-diff "git" "diff" args)
+	(magit-hs-diff-hide-show magit-diff-init-hiding-mode nil nil)))))
 
 (defun magit-diff (range)
   (interactive (list (magit-read-rev-range "Diff")))
