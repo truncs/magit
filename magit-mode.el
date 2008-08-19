@@ -28,21 +28,23 @@
     (= (call-process "git" nil nil nil "rev-parse" "--git-dir")
        0)))
 
-(defun magit-stage-current-file ()
-  "State the current file."
-  (interactive)
-  (unless (buffer-file-name)
-    (error "Current buffer has no associated file!"))
-  (magit-run "git" "add" (file-name-nondirectory (buffer-file-name))))
+(defun magit-stage-file (file)
+  "Stage FILE."
+  (magit-run "git" "add" file))
 
-(defun magit-unstage-current-file ()
-  "UnState the current file."
-  (interactive)
-  ;;  (error "This command is currently NOT usable!")
+(defun magit-unstage-file (file)
+  "UnStage FILE."
+  (magit-run "git" "reset" "-q" "HEAD" "--" file))
+
+(defun magit-stage-current-file (&optional unstage)
+  "Stage the current file. if UNSTAGE is not nil UnStage intead."
+  (interactive "P")
   (unless (buffer-file-name)
     (error "Current buffer has no associated file!"))
-  (magit-run "git" "reset" "-q" "HEAD" "--"
-	     (file-name-nondirectory (buffer-file-name))))
+   (if unstage
+       (magit-run "git" "reset" "-q" "HEAD" "--"
+		  (file-name-nondirectory (buffer-file-name)))
+     (magit-run "git" "add" (file-name-nondirectory (buffer-file-name)))))
 
 (defun magit-diff-current-file (&optional ask-p)
   "Diff the current file."

@@ -89,7 +89,7 @@
 
 (defface magit-diff-none-face
   '((((class color) (background light))
-     :foreground "grey")
+     :foreground "grey50")
     (((class color) (background dark))
      :foreground "grey30"))
   "`magit-mode' face used to highlight diff unchanged lines."
