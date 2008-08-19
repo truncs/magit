@@ -23,33 +23,41 @@
 ;; See magit.el for more information
 (require 'magit)
 
+(defcustom magit-mode-key-prefix "C-c C-v"
+  "Prefix keystrokes for magit minor-mode commands."
+  :group 'magit
+  :type 'string
+  :set 'magit-mode-key-prefix-set)
+
 (defun magit-is-in-git-working-dir (&optional dir)
   (let ((default-directory (or dir default-directory)))
     (= (call-process "git" nil nil nil "rev-parse" "--git-dir")
        0)))
 
-(defun magit-stage-current-file ()
-  "State the current file."
-  (interactive)
-  (unless (buffer-file-name)
-    (error "Current buffer has no associated file!"))
-  (magit-run "git" "add" (file-name-nondirectory (buffer-file-name))))
+(defun magit-stage-file (file)
+  "Stage FILE."
+  (magit-run "git" "add" file))
 
-(defun magit-unstage-current-file ()
-  "UnState the current file."
-  (interactive)
-  ;;  (error "This command is currently NOT usable!")
+(defun magit-unstage-file (file)
+  "UnStage FILE."
+  (magit-run "git" "reset" "-q" "HEAD" "--" file))
+
+(defun magit-stage-current-file (&optional unstage)
+  "Stage the current file. if UNSTAGE is not nil UnStage intead."
+  (interactive "P")
   (unless (buffer-file-name)
     (error "Current buffer has no associated file!"))
-  (magit-run "git" "reset" "-q" "HEAD" "--"
-	     (file-name-nondirectory (buffer-file-name))))
+   (if unstage
+       (magit-run "git" "reset" "-q" "HEAD" "--"
+		  (file-name-nondirectory (buffer-file-name)))
+     (magit-run "git" "add" (file-name-nondirectory (buffer-file-name)))))
 
 (defun magit-diff-current-file (&optional ask-p)
   "Diff the current file."
   (interactive "P")
   (unless (buffer-file-name)
     (error "Current buffer has no associated file!"))
-  (let* ((rev (if ask-p (magit-read-rev "Diff against: " "HEAD") "Stage"))
+  (let* ((rev (if ask-p (magit-read-rev "Diff against: " "HEAD") "Staging"))
 	 (file (file-name-nondirectory (buffer-file-name)))
 	 (desc (format "%s vs %s" file rev)))
     (if ask-p
@@ -94,16 +102,21 @@
 
 (defvar magit-minor-mode nil)
 (defvar magit-minor-mode-map (make-sparse-keymap "MaGit"))
+(defvar magit-file-cmd-map (make-sparse-keymap))
 
-(let ((map magit-minor-mode-map))
-  (define-key map (kbd "C-c C-v C-v") 'magit-status-other-window)
-  (define-key map (kbd "C-c C-v C-b") 'magit-create-branch)
-  (define-key map (kbd "C-c C-v C-s") 'magit-stage-current-file)
-  (define-key map (kbd "C-c C-v =")   'magit-diff-current-file)
-  (define-key map (kbd "C-c C-v u")   'magit-cancel-modifications)
-  (define-key map (kbd "C-c C-v o")   'magit-current-file-other-version-other-window)
-  (define-key map (kbd "C-c C-v C-c") 'magit-log-edit)
-  (define-key map (kbd "C-c C-v h")   'magit-browse-branch-log))
+(defun magit-mode-key-prefix-set (var val)
+  (define-key magit-minor-mode-map (read-kbd-macro val) magit-file-cmd-map)
+  (custom-set-default var val))
+
+(let ((map magit-file-cmd-map))
+  (define-key map (kbd "v") 'magit-status-other-window)
+  (define-key map (kbd "b") 'magit-create-branch)
+  (define-key map (kbd "s") 'magit-stage-current-file)
+  (define-key map (kbd "=") 'magit-diff-current-file)
+  (define-key map (kbd "u") 'magit-cancel-modifications)
+  (define-key map (kbd "~") 'magit-current-file-other-version-other-window)
+  (define-key map (kbd "c") 'magit-log-edit)
+  (define-key map (kbd "l") 'magit-log-head))
 
 ;;;###autoload
 (defun magit-minor-mode (&optional arg)
