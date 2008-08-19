@@ -694,24 +694,20 @@ Please see the manual for a complete description of Magit.
 	      (insert (apply 'format "Rebasing: %s (%s of %s)\n" rebase))))
 	(insert "\n")
 	(magit-insert-section 'untracked
-			      (concat "Untracked files:\n"
-				      (make-string 80 ?-))
+			      "Untracked files:\n"
 			      'magit-wash-other-files
 			      "git" "ls-files" "--others" "--exclude-standard")
 	(magit-insert-section 'unstaged
-			      (concat "Unstaged changes:\n"
-				      (make-string 80 ?-))
+			      "Unstaged changes:\n"
 			      'magit-wash-diff
 			      "git" "diff")
 	(magit-insert-section 'staged
-			      (concat "Staged changes:\n"
-				      (make-string 80 ?-))
+			      "Staged changes:\n"
 			      'magit-wash-diff
 			      "git" "diff" "--cached")
 	(if remote
 	    (magit-insert-section 'unpushed
-				  (concat "Unpushed commits:\n"
-					  (make-string 80 ?-))
+				  "Unpushed commits:\n"
 				  'magit-wash-log
 				  "git" "log" "--graph" "--pretty=oneline"
 				  (format "%s/%s..HEAD" remote branch))))
