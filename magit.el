@@ -199,7 +199,9 @@
 	  (save-restriction
 	    (narrow-to-region beg (point))
 	    (funcall washer status)
-	    (goto-char (point-max)))))))
+	    (goto-char (point-max)))))
+    (if (= 3 (count-lines section-beg (point)))
+	(delete-region section-beg (point)))))
 
 (defun magit-section-head (section n)
   (if (<= (length section) n)
@@ -475,7 +477,8 @@ Please see the manual for a complete description of Magit.
   (with-current-buffer buf
     (let ((old-line (line-number-at-pos))
 	  (old-section (magit-section-at-point))
-	  (inhibit-read-only t))
+	  (inhibit-read-only t)
+	  beginning-of-unstaged)
       (erase-buffer)
       (let* ((branch (magit-get-current-branch))
 	     (remote (and branch (magit-get "branch" branch "remote"))))
@@ -500,22 +503,34 @@ Please see the manual for a complete description of Magit.
 	      (insert (apply 'format "Rebasing: %s (%s of %s)\n" rebase))))
 	(insert "\n")
 	(magit-insert-section 'untracked
-			      "Untracked files:" 'magit-wash-other-files
-			     "git" "ls-files" "--others" "--exclude-standard")
+			      (concat "Untracked files:\n"
+				      (make-string 80 ?-))
+			      'magit-wash-other-files
+			      "git" "ls-files" "--others" "--exclude-standard")
 	(magit-insert-section 'unstaged
-			      "Unstaged changes:" 'magit-wash-diff
+			      (concat "Unstaged changes:\n"
+				      (make-string 80 ?-))
+			      'magit-wash-diff
 			      "git" "diff")
 	(magit-insert-section 'staged
-			      "Staged changes:" 'magit-wash-diff
+			      (concat "Staged changes:\n"
+				      (make-string 80 ?-))
+			      'magit-wash-diff
 			      "git" "diff" "--cached")
 	(if remote
 	    (magit-insert-section 'unpushed
-				  "Unpushed commits:" 'magit-wash-log
+				  (concat "Unpushed commits:\n"
+					  (make-string 80 ?-))
+				  'magit-wash-log
 				  "git" "log" "--graph" "--pretty=oneline"
 				  (format "%s/%s..HEAD" remote branch))))
       (magit-goto-line old-line)
       (magit-goto-section old-section))
-    (magit-refresh-marks-in-buffer buf)))
+    (magit-refresh-marks-in-buffer buf)
+    (when (and (bobp)
+	       (re-search-forward "^Unstaged changes" nil t))
+      (re-search-forward "^@@")
+      (forward-char -2))))
 
 (defun magit-find-buffer (submode &optional dir)
   (let ((topdir (magit-get-top-dir (or dir default-directory))))
