@@ -363,6 +363,7 @@
     (define-key map (kbd "c") 'magit-log-edit)
     (define-key map (kbd "C") 'magit-add-log)
     (define-key map (kbd "$") 'magit-display-process)
+    (define-key map (kbd "q") 'quit-window)
     map))
 
 (defvar magit-mode-hook nil)
@@ -975,3 +976,4 @@ Please see the manual for a complete description of Magit.
     (message "Thing: %s" info)))
 
 (provide 'magit)
+;;; magit.el ends here
