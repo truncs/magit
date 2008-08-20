@@ -38,6 +38,9 @@
 ;; - Equivalent of interactive rebase
 ;; - 'Subsetting', only looking at a subset of all files.
 ;; - Detect and handle renames and copies.
+;; - Show a given file at the commit under point in the history
+;; - Amend the last commit
+;; - Use font-lock for colorization
 
 (require 'cl)
 (require 'parse-time)
