@@ -213,6 +213,10 @@ Type @kbd{X} to reset your working tree and staging area to the most
 recently committed state.  This will discard your local modifications,
 so be careful.
 
+Typing @kbd{A} in the status buffer will allow you to amend the last
+commit with whatever is currently staged. The log edit buffer should
+be pre-populated with the last commit message for you to edit.
+
 @node Branching
 @chapter Branching
 
