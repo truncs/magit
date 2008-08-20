@@ -41,6 +41,8 @@
 ;; - Show a given file at the commit under point in the history
 ;; - Amend the last commit
 ;; - Use font-lock for colorization
+;; - Maybe use after-save-hooks to refresh the status buffer?
+;; - `c' in status should be a no-op if nothing is staged
 
 (require 'cl)
 (require 'parse-time)
@@ -833,11 +835,6 @@ Please see the manual for a complete description of Magit.
 	(magit-insert-section 'commit nil 'magit-wash-diff
 			      "git" "log" "--max-count=1" "--cc" "-p"
 			      commit)))))
-
-(defun magit-quit ()
-  "Bury the current buffer."
-  (interactive)
-  (bury-buffer))
 
 (defun magit-wash-log (status)
   (goto-char (point-min))
