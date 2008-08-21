@@ -39,8 +39,7 @@
 ;; - Equivalent of interactive rebase
 ;; - 'Subsetting', only looking at a subset of all files.
 ;; - Detect and handle renames and copies.
-;; - Show a given file at the commit under point in the history
-;; - Use font-lock for colorization
+;; - Show a given file at the commit under point in the history?
 ;; - Maybe use after-save-hooks to refresh the status buffer?
 ;; - `c' in status should be a no-op if nothing is staged
 
@@ -270,6 +269,8 @@ Many Magit faces inherit from this one by default."
 (defvar magit-highlight-overlay nil)
 
 (defvar magit-highlighted-item nil)
+
+(defvar magit-log-edit-hook nil)
 
 (defun magit-highlight-item ()
   (let ((item (magit-get-item)))
@@ -877,7 +878,8 @@ Please see the manual for a complete description of Magit.
     (pop-to-buffer buf)
     (setq default-directory dir)
     (use-local-map magit-log-edit-map)
-    (message "Type C-c C-c to commit.")))
+    (message "Type C-c C-c to commit.")
+    (run-hooks 'magit-log-edit-hook)))
 
 (defun magit-add-log ()
   (interactive)
