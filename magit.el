@@ -735,7 +735,7 @@ Please see the manual for a complete description of Magit.
 	   (magit-run "git" "apply" "--cached" "--reverse" ".git/magit-tmp"))
 	  ((diff)
 	   (magit-run "git" "reset" "HEAD"
-		      (magit-diffor-hunk-item-file item)))))))
+		      (magit-diff-or-hunk-item-file item)))))))
 
 (defun magit-stage-all ()
   (interactive)

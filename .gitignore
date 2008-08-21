@@ -16,10 +16,10 @@
 /magit-0.5.tar.gz
 /magit.info
 /missing
+/mkinstalldirs
 /texinfo.tex
 /debian/magit/
 /autom4te.cache/
 /magit-0.6.tar.gz
-/mkinstalldirs
 *.elc
 *~
