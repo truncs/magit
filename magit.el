@@ -1,6 +1,7 @@
 ;;; magit -- control Git from Emacs.
 
 ;; Copyright (C) 2008  Marius Vollmer
+;; Copyright (C) 2008  Linh Dang
 ;;
 ;; Magit is free software; you can redistribute it and/or modify it
 ;; under the terms of the GNU General Public License as published by
@@ -45,6 +46,64 @@
 
 (require 'cl)
 (require 'parse-time)
+
+(defgroup magit nil
+  "Controlling Git from Emacs."
+  :prefix "magit-"
+  :group 'tools)
+
+(defface magit-header
+  '((t))
+  "Face for generic header lines.
+
+Many Magit faces inherit from this one by default."
+  :group 'magit)
+
+(defface magit-section-title
+  '((t :weight bold :inherit magit-header))
+  "Face for section titles."
+  :group 'magit)
+
+(defface magit-branch
+  '((t :weight bold :inherit magit-header))
+  "Face for the current branch."
+  :group 'magit)
+
+(defface magit-diff-file-header
+  '((t :inherit magit-header))
+  "Face for diff file header lines."
+  :group 'magit)
+
+(defface magit-diff-hunk-header
+  '((t :slant italic :inherit magit-header))
+  "Face for diff hunk header lines."
+  :group 'magit)
+
+(defface magit-diff-add
+  '((((class color) (background light))
+     :foreground "blue1")
+    (((class color) (background dark))
+     :foreground "white"))
+  "Face for lines in a diff that have been added."
+  :group 'magit)
+
+(defface magit-diff-none
+  '((t))
+  "Face for lines in a diff that are unchanged."
+  :group 'magit)
+
+(defface magit-diff-del
+  '((((class color) (background light))
+     :foreground "red")
+    (((class color) (background dark))
+     :foreground "OrangeRed"))
+  "Face for lines in a diff that have been deleted."
+  :group 'magit)
+
+(defface magit-item-highlight
+  '((t :background "gray95"))
+  "Face for highlighting the current item."
+  :group 'magit)
 
 ;;; Utilities
 
@@ -95,7 +154,7 @@
 (defun magit-get-top-dir (cwd)
   (let* ((cwd (expand-file-name cwd))
 	 (magit-dir (magit-shell "cd '%s' && git rev-parse --git-dir 2>/dev/null"
-			      cwd)))
+				 cwd)))
     (if magit-dir
 	(file-name-as-directory (or (file-name-directory magit-dir) cwd))
       nil)))
@@ -120,8 +179,11 @@
   (magit-shell "git name-rev --always --name-only %s" rev))
 
 (defun magit-put-line-property (prop val)
-  (put-text-property (line-beginning-position) (+ 1 (line-end-position))
+  (put-text-property (line-beginning-position) (line-beginning-position 2)
 		     prop val))
+
+;;; Highlighting
+
 
 ;;; Revisions and ranges
 
@@ -188,22 +250,59 @@
 (defun magit-default-rev ()
   (magit-commit-at-point t))
 
+;;; Items
+
+(defstruct magit-item
+  type beginning ending info)
+
+(defun magit-markup-item (beg end type info &optional active-beg active-end)
+  (let ((item (make-magit-item :type type
+			       :beginning beg
+			       :ending end
+			       :info info)))
+    (put-text-property (or active-beg beg) (or active-end end)
+		       'magit-item item)
+    item))
+
+(defun magit-get-item ()
+  (get-text-property (point) 'magit-item))
+
+(defvar magit-highlight-overlay nil)
+
+(defvar magit-highlighted-item nil)
+
+(defun magit-highlight-item ()
+  (let ((item (magit-get-item)))
+    (when (not (eq item magit-highlighted-item))
+      (setq magit-highlighted-item item)
+      (if (not magit-highlight-overlay)
+	  (let ((ov (make-overlay 1 1)))
+	    (overlay-put ov 'face 'magit-item-highlight)
+	    (setq magit-highlight-overlay ov)))
+      (if item
+	  (move-overlay magit-highlight-overlay
+			(magit-item-beginning item)
+			(magit-item-ending item)
+			(current-buffer))
+	(delete-overlay magit-highlight-overlay)))))
+
 ;;; Sections
 
 (defun magit-insert-section (section title washer cmd &rest args)
   (let ((section-beg (point)))
     (if title
-	(insert (propertize title 'face 'bold) "\n"))
+	(insert (propertize title 'face 'magit-section-title) "\n"))
     (let* ((beg (point))
-	   (status (apply 'call-process cmd nil t nil args))
-	   (end (point)))
-      (insert "\n")
+	   (status (apply 'call-process cmd nil t nil args)))
       (put-text-property section-beg (point) 'magit-section (list section))
       (if washer
 	  (save-restriction
 	    (narrow-to-region beg (point))
 	    (funcall washer status)
-	    (goto-char (point-max)))))))
+	    (goto-char (point-max))))
+      (if (/= beg (point))
+	  (insert "\n")
+	(delete-region section-beg (point))))))
 
 (defun magit-section-head (section n)
   (if (<= (length section) n)
@@ -215,7 +314,7 @@
        (<= (length prefix) (length section))
        (equal prefix (subseq section 0 (length prefix)))))
 
-(defun magit-mark-subsection (beg end subsection level)
+(defun magit-markup-subsection (beg end subsection level)
   (let* ((section (get-text-property beg 'magit-section))
 	 (new (append (magit-section-head section level)
 		      (list subsection))))
@@ -298,18 +397,11 @@
 	      (revert-buffer t t t))))))))
 
 (defun magit-process-sentinel (process event)
-  (cond ((string= event "finished\n")
-	 (message "Git finished.")
-	 (setq magit-process nil))
-	((string= event "killed\n")
-	 (message "Git was killed.")
-	 (setq magit-process nil))
-	((string-match "exited abnormally" event)
-	 (message "Git failed.")
-	 (setq magit-process nil)
-	 (magit-display-process))
-	(t
-	 (message "Git is weird.")))
+  (with-current-buffer (process-buffer process)
+    (let ((msg (format "Git %s." (substring event 0 -1))))
+      (insert msg "\n")
+      (message msg)))
+  (setq magit-process nil)
   (magit-set-mode-line-process nil)
   (magit-revert-files)
   (magit-update-status (magit-find-status-buffer)))
@@ -338,12 +430,13 @@
     (define-key map (kbd "3") 'magit-jump-to-staged)
     (define-key map (kbd "4") 'magit-jump-to-unpushed)
     (define-key map (kbd "g") 'magit-status)
-    (define-key map (kbd "s") 'magit-stage-thing-at-point)
+    (define-key map (kbd "s") 'magit-stage-item)
     (define-key map (kbd "S") 'magit-stage-all)
-    (define-key map (kbd "u") 'magit-unstage-thing-at-point)
-    (define-key map (kbd "i") 'magit-ignore-thing-at-point)
-    (define-key map (kbd "?") 'magit-describe-thing-at-point)
-    (define-key map (kbd ".") 'magit-mark-thing-at-point)
+    (define-key map (kbd "u") 'magit-unstage-item)
+    (define-key map (kbd "U") 'magit-unstage-all)
+    (define-key map (kbd "i") 'magit-ignore-item)
+    (define-key map (kbd "?") 'magit-describe-item)
+    (define-key map (kbd ".") 'magit-mark-item)
     (define-key map (kbd "=") 'magit-diff-with-mark)
     (define-key map (kbd "l") 'magit-log-head)
     (define-key map (kbd "L") 'magit-log)
@@ -353,15 +446,17 @@
     (define-key map (kbd "v") 'magit-revert-commit)
     (define-key map (kbd "x") 'magit-reset-head)
     (define-key map (kbd "X") 'magit-reset-working-tree)
-    (define-key map (kbd "RET") 'magit-visit-thing-at-point)
+    (define-key map (kbd "k") 'magit-discard-item)
+    (define-key map (kbd "RET") 'magit-visit-item)
     (define-key map (kbd "b") 'magit-checkout)
     (define-key map (kbd "B") 'magit-create-branch)
     (define-key map (kbd "m") 'magit-manual-merge)
     (define-key map (kbd "M") 'magit-automatic-merge)
     (define-key map (kbd "R") 'magit-rebase-step)
     (define-key map (kbd "A") 'magit-amend)
-    (define-key map (kbd "U") 'magit-pull)
     (define-key map (kbd "P") 'magit-push)
+    (define-key map (kbd "f") 'magit-remote-update)
+    (define-key map (kbd "F") 'magit-pull)
     (define-key map (kbd "c") 'magit-log-edit)
     (define-key map (kbd "C") 'magit-add-log)
     (define-key map (kbd "$") 'magit-display-process)
@@ -381,8 +476,6 @@
 (put 'magit-submode 'permanent-local t)
 
 (defun magit-mode ()
-;;; XXX - the formatting is all screwed up because of the \\[...]
-;;;       constructs.
   "Review the status of a git repository and act on it.
 
 Please see the manual for a complete description of Magit.
@@ -394,6 +487,7 @@ Please see the manual for a complete description of Magit.
 	mode-name "Magit"
 	mode-line-process ""
 	truncate-lines t)
+  (add-hook 'post-command-hook #'magit-highlight-item nil t)
   (use-local-map magit-mode-map)
   (run-mode-hooks 'magit-mode-hook))
 
@@ -404,37 +498,45 @@ Please see the manual for a complete description of Magit.
 
 ;;; Status
 
-(defun magit-wash-other-files (status)
+(defun magit-wash-untracked-files (status)
   (goto-char (point-min))
   (let ((seq 0))
     (while (not (eobp))
-      (let ((filename (buffer-substring (point) (line-end-position))))
-	(magit-mark-subsection (line-beginning-position) 
-			       (+ (line-end-position) 1)
-			       seq 1)
-	(magit-put-line-property 'face '(:foreground "red"))
-	(magit-put-line-property 'magit-info (list 'other-file filename)))
-      (setq seq (+ seq 1))
+      (let ((filename (buffer-substring-no-properties
+		       (point) (line-end-position))))
+	(cond ((not (string= filename ""))
+	       (magit-markup-subsection (line-beginning-position) 
+					(line-beginning-position 2)
+					seq 1)
+	       (magit-put-line-property 'face '(:foreground "red"))
+	       (magit-markup-item (line-beginning-position)
+				  (line-beginning-position 2)
+				  'untracked-file filename)
+	       (setq seq (+ seq 1)))))
       (forward-line)
-    (beginning-of-line))))
+      (beginning-of-line))))
 
-(defun magit-wash-diff-propertize-diff (head-seq head-beg head-end)
+(defun magit-wash-diff-markup-diff (head-seq head-beg head-end)
   (let ((head-end (or head-end (point))))
     (when head-beg
-      (put-text-property head-beg head-end
-			 'magit-info (list 'diff
-					   head-beg (point)))
-      (magit-mark-subsection head-beg head-end head-seq 1))))
+      (magit-markup-item head-beg (point)
+			 'diff nil
+			 head-beg head-end)
+      (magit-markup-subsection head-beg head-end head-seq 1))))
 
-(defun magit-wash-diff-propertize-hunk (head-seq hunk-seq
-					head-beg head-end hunk-beg)
+(defun magit-hunk-item-head-beg (item)
+  (car (magit-item-info item)))
+
+(defun magit-hunk-item-head-end (item)
+  (cadr (magit-item-info item)))
+
+(defun magit-wash-diff-markup-hunk (head-seq hunk-seq
+					     head-beg head-end hunk-beg)
   (when hunk-beg
-    (put-text-property hunk-beg (point)
-		       'magit-info (list 'hunk
-					head-beg head-end
-					hunk-beg (point)))
-    (magit-mark-subsection hunk-beg (point) head-seq 1)
-    (magit-mark-subsection hunk-beg (point) hunk-seq 2)))
+    (magit-markup-item hunk-beg (point)
+		       'hunk (list head-beg head-end))
+    (magit-markup-subsection hunk-beg (point) head-seq 1)
+    (magit-markup-subsection hunk-beg (point) hunk-seq 2)))
 
 (defun magit-wash-diff (status)
   (goto-char (point-min))
@@ -448,31 +550,35 @@ Please see the manual for a complete description of Magit.
       (let ((prefix (buffer-substring-no-properties
 		     (point) (min (+ (point) n-files) (point-max)))))
 	(cond ((looking-at "^diff")
-	       (magit-wash-diff-propertize-diff head-seq head-beg head-end)
-	       (magit-wash-diff-propertize-hunk head-seq hunk-seq
-						head-beg head-end hunk-beg)
+	       (magit-put-line-property 'face 'magit-diff-file-header)
+	       (magit-wash-diff-markup-diff head-seq head-beg head-end)
+	       (magit-wash-diff-markup-hunk head-seq hunk-seq
+					    head-beg head-end hunk-beg)
 	       (setq head-seq (+ head-seq 1))
 	       (setq head-beg (point))
 	       (setq head-end nil)
 	       (setq hunk-seq 0)
 	       (setq hunk-beg nil))
 	      ((looking-at "^@+")
+	       (magit-put-line-property 'face 'magit-diff-hunk-header)
 	       (setq n-files (- (length (match-string 0)) 1))
 	       (if (null head-end)
 		   (setq head-end (point)))
-	       (magit-wash-diff-propertize-hunk head-seq hunk-seq
-						head-beg head-end hunk-beg)
+	       (magit-wash-diff-markup-hunk head-seq hunk-seq
+					    head-beg head-end hunk-beg)
 	       (setq hunk-seq (+ hunk-seq 1))
 	       (setq hunk-beg (point)))
+	      ((looking-at "^ ")
+	       (magit-put-line-property 'face 'magit-diff-none))
 	      ((string-match "\\+" prefix)
-	       (magit-put-line-property 'face '(:foreground "blue1")))
+	       (magit-put-line-property 'face 'magit-diff-add))
 	      ((string-match "-" prefix)
-	       (magit-put-line-property 'face '(:foreground "red")))))
+	       (magit-put-line-property 'face 'magit-diff-del))))
       (forward-line)
       (beginning-of-line))
-    (magit-wash-diff-propertize-diff head-seq head-beg head-end)
-    (magit-wash-diff-propertize-hunk head-seq hunk-seq
-				     head-beg head-end hunk-beg)))
+    (magit-wash-diff-markup-diff head-seq head-beg head-end)
+    (magit-wash-diff-markup-hunk head-seq hunk-seq
+				 head-beg head-end hunk-beg)))
 
 (defun magit-update-status (buf)
   (with-current-buffer buf
@@ -486,7 +592,8 @@ Please see the manual for a complete description of Magit.
 	    (insert (format "Remote: %s %s\n"
 			    remote (magit-get "remote" remote "url"))))
 	(insert (format "Local:  %s %s\n"
-			(propertize (or branch "(detached)") 'face 'bold)
+			(propertize (or branch "(detached)")
+				    'face 'magit-branch)
 			(abbreviate-file-name default-directory)))
 	(insert
 	 (format "Head:   %s\n"
@@ -503,8 +610,8 @@ Please see the manual for a complete description of Magit.
 	      (insert (apply 'format "Rebasing: %s (%s of %s)\n" rebase))))
 	(insert "\n")
 	(magit-insert-section 'untracked
-			      "Untracked files:" 'magit-wash-other-files
-			     "git" "ls-files" "--others" "--exclude-standard")
+			      "Untracked files:" 'magit-wash-untracked-files
+			      "git" "ls-files" "--others" "--exclude-standard")
 	(magit-insert-section 'unstaged
 			      "Unstaged changes:" 'magit-wash-diff
 			      "git" "diff")
@@ -518,7 +625,8 @@ Please see the manual for a complete description of Magit.
 				  (format "%s/%s..HEAD" remote branch))))
       (magit-goto-line old-line)
       (magit-goto-section old-section))
-    (magit-refresh-marks-in-buffer buf)))
+    (magit-refresh-marks-in-buffer buf)
+    (magit-highlight-item)))
 
 (defun magit-find-buffer (submode &optional dir)
   (let ((topdir (magit-get-top-dir (or dir default-directory))))
@@ -546,28 +654,32 @@ Please see the manual for a complete description of Magit.
 
 ;;; Staging
 
-(defun magit-write-diff-patch (info file)
-  (write-region (elt info 1) (elt info 2) file))
+(defun magit-write-hunk-item-patch (item file)
+  (write-region (magit-hunk-item-head-beg item)
+		(magit-hunk-item-head-end item)
+		file)
+  (write-region (magit-item-beginning item)
+		(magit-item-ending item)
+		file
+		t))
 
-(defun magit-write-hunk-patch (info file)
-  (write-region (elt info 1) (elt info 2) file)
-  (write-region (elt info 3) (elt info 4) file t))
-
-(defun magit-hunk-is-conflict-p (info)
+(defun magit-hunk-item-is-conflict-p (item)
   (save-excursion
-    (goto-char (elt info 1))
+    (goto-char (magit-hunk-item-head-beg item))
     (looking-at "^diff --cc")))
 
-(defun magit-diff-conflict-file (info)
+(defun magit-diff-item-conflict-file (item)
   (save-excursion
-    (goto-char (elt info 1))
+    (goto-char (magit-item-beginning item))
     (if (looking-at "^diff --cc +\\(.*\\)$")
 	(match-string 1)
       nil)))
 
-(defun magit-diff-info-file (info)
+(defun magit-diff-or-hunk-item-file (item)
   (save-excursion
-    (goto-char (elt info 1))
+    (goto-char (if (eq (magit-item-type item) 'hunk)
+		   (magit-hunk-item-head-beg item)
+		 (magit-item-beginning item)))
     (cond ((looking-at "^diff --git a/\\(.*\\) b/\\(.*\\)$")
 	   (match-string 2))
 	  ((looking-at "^diff --cc +\\(.*\\)$")
@@ -575,65 +687,60 @@ Please see the manual for a complete description of Magit.
 	  (t
 	   nil))))
 
-(defun magit-diff-info-position (info)
-  (save-excursion
-    (cond ((eq (car info) 'hunk)
-	   (goto-char (elt info 3))
-	   (if (looking-at "@@+ .* \\+\\([0-9]+\\),[0-9]+ @@+")
-	       (parse-integer (match-string 1))
-	     nil))
-	  (t nil))))
-
-(defun magit-hunk-target-line (info)
-  ;; XXX - deal with combined diffs
+(defun magit-hunk-item-target-line (item)
   (save-excursion
     (beginning-of-line)
     (let ((line (line-number-at-pos)))
       (if (looking-at "-")
 	  (error "Can't visit removed lines."))
-      (goto-char (elt info 3))
+      (goto-char (magit-item-beginning item))
       (if (not (looking-at "@@+ .* \\+\\([0-9]+\\),[0-9]+ @@+"))
 	  (error "Hunk header not found."))
       (let ((target (parse-integer (match-string 1))))
 	(forward-line)
 	(while (< (line-number-at-pos) line)
+	  ;; XXX - deal with combined diffs
 	  (if (not (looking-at "-"))
 	      (setq target (+ target 1)))
 	  (forward-line))
 	target))))
 
-(defun magit-stage-thing-at-point ()
-  "Add the hunk or file under point to the staging area."
+(defun magit-stage-item ()
+  "Add the item at point to the staging area."
   (interactive)
-  (let ((info (get-char-property (point) 'magit-info)))
-    (if info
-	(case (car info)
-	  ((other-file)
-	   (magit-run "git" "add" (cadr info)))
+  (let ((item (magit-get-item)))
+    (if item
+	(case (magit-item-type item)
+	  ((untracked-file)
+	   (magit-run "git" "add" (magit-item-info item)))
 	  ((hunk)
-	   (if (magit-hunk-is-conflict-p info)
-	       (error
-"Can't stage individual resolution hunks.  Please stage the whole file."))
-	   (magit-write-hunk-patch info ".git/magit-tmp")
+	   (if (magit-hunk-item-is-conflict-p item)
+	       (error "Can't stage individual resolution hunks.  Please stage the whole file."))
+	   (magit-write-hunk-item-patch item ".git/magit-tmp")
 	   (magit-run "git" "apply" "--cached" ".git/magit-tmp"))
 	  ((diff)
-	   (magit-run "git" "add" (magit-diff-info-file info)))))))
+	   (magit-run "git" "add" (magit-diff-or-hunk-item-file item)))))))
 
-(defun magit-unstage-thing-at-point ()
-  "Remove the hunk under point from the staging area."
+(defun magit-unstage-item ()
+  "Remove the item at point from the staging area."
   (interactive)
-  (let ((info (get-char-property (point) 'magit-info)))
-    (if info
-	(case (car info)
+  (let ((item (magit-get-item)))
+    (if item
+	(case (magit-item-type item)
 	  ((hunk)
-	   (magit-write-hunk-patch info ".git/magit-tmp")
+	   (magit-write-hunk-item-patch item ".git/magit-tmp")
 	   (magit-run "git" "apply" "--cached" "--reverse" ".git/magit-tmp"))
 	  ((diff)
-	   (magit-run "git" "reset" "HEAD" (magit-diff-info-file info)))))))
+	   (magit-run "git" "reset" "HEAD"
+		      (magit-diffor-hunk-item-file item)))))))
 
 (defun magit-stage-all ()
   (interactive)
   (magit-run "git" "add" "-u" "."))
+
+(defun magit-unstage-all ()
+  (interactive)
+  (magit-run "git" "reset" "HEAD"))
 
 ;;; Branches
 
@@ -641,7 +748,7 @@ Please see the manual for a complete description of Magit.
   (interactive (list (magit-read-rev "Switch to" (magit-default-rev))))
   (if rev
       (magit-run "git" "checkout" (magit-rev-to-git rev))))
-  
+
 (defun magit-read-create-branch-args ()
   (let* ((cur-branch (magit-get-current-branch))
 	 (branch (read-string "Create branch: "))
@@ -689,7 +796,7 @@ Please see the manual for a complete description of Magit.
     (if (not info)
 	(let ((rev (magit-read-rev "Rebase to")))
 	  (if rev
-	      (magit-run "git" "rebase" rev)))
+	      (magit-run "git" "rebase" (magit-rev-to-git rev))))
       (let ((cursor-in-echo-area t)
 	    (message-log-max nil))
 	(message "Rebase in progress.  Abort, Skip, or Continue? ")
@@ -705,7 +812,9 @@ Please see the manual for a complete description of Magit.
 ;;; Resetting
 
 (defun magit-reset-head (rev)
-  (interactive (list (magit-read-rev "Reset head to" (magit-default-rev))))
+  (interactive (list (magit-read-rev "Reset head to"
+				     (or (magit-default-rev)
+					 "HEAD^"))))
   (if rev
       (magit-run "git" "reset" "--soft" (magit-rev-to-git rev))))
 
@@ -714,7 +823,11 @@ Please see the manual for a complete description of Magit.
   (if (yes-or-no-p "Discard all uncommitted changes? ")
       (magit-run "git" "reset" "--hard")))
 
-;;; Push and pull
+;;; Updating, pull, and push
+
+(defun magit-remote-update ()
+  (interactive)
+  (magit-run "git" "remote" "update"))
 
 (defun magit-pull ()
   (interactive)
@@ -768,44 +881,46 @@ Please see the manual for a complete description of Magit.
 
 (defun magit-add-log ()
   (interactive)
-  (let* ((fun (save-window-excursion
+  (let ((item (magit-get-item)))
+    (if (not (and item (eq (magit-item-type item) 'hunk)))
+	(error "No hunk at point."))
+    (let ((fun (save-window-excursion
 		 (save-excursion
-		   (magit-visit-thing-at-point)
+		   (magit-visit-item)
 		   (add-log-current-defun))))
-	 (file (magit-diff-info-file (get-text-property (point)
-							'magit-info))))
-    (magit-log-edit)
-    (goto-char (point-min))
-    (cond ((not (search-forward-regexp (format "^\\* %s" (regexp-quote file))
-				       nil t))
-	   ;; No entry for file, create it.
-	   (goto-char (point-max))
-	   (insert (format "\n* %s (%s): " file fun)))
-	  (t
-	   ;; found entry for file, look for fun
-	   (let ((limit (or (search-forward-regexp "^\\* " nil t)
-			    (point-max))))
-	     (cond ((search-forward-regexp (format "(.*\\<%s\\>.*):"
-						   (regexp-quote fun))
-					   limit t)
-		    ;; found it, goto end of current entry
-		    (if (search-forward-regexp "^(" limit t)
-			(backward-char 2)
-		      (goto-char limit)))
-		   (t
-		    ;; not found insert new entry
-		    (goto-char limit)
-		    (beginning-of-line)
-		    (open-line 1)
-		    (insert (format "(%s): " fun)))))))))
+	  (file (magit-diff-or-hunk-item-file item)))
+      (magit-log-edit)
+      (goto-char (point-min))
+      (cond ((not (search-forward-regexp (format "^\\* %s" (regexp-quote file))
+					 nil t))
+	     ;; No entry for file, create it.
+	     (goto-char (point-max))
+	     (insert (format "\n* %s (%s): " file fun)))
+	    (t
+	     ;; found entry for file, look for fun
+	     (let ((limit (or (search-forward-regexp "^\\* " nil t)
+			      (point-max))))
+	       (cond ((search-forward-regexp (format "(.*\\<%s\\>.*):"
+						     (regexp-quote fun))
+					     limit t)
+		      ;; found it, goto end of current entry
+		      (if (search-forward-regexp "^(" limit t)
+			  (backward-char 2)
+			(goto-char limit)))
+		     (t
+		      ;; not found insert new entry
+		      (goto-char limit)
+		      (beginning-of-line)
+		      (open-line 1)
+		      (insert (format "(%s): " fun))))))))))
 
 ;;; Commits
 
 (defun magit-commit-at-point (&optional nil-ok-p)
-  (let* ((info (get-text-property (point) 'magit-info))
-	 (commit (and info
-		      (eq (car info) 'commit)
-		      (cadr info))))
+  (let* ((item (magit-get-item))
+	 (commit (and item
+		      (eq (magit-item-type item) 'commit)
+		      (magit-item-info item))))
     (if nil-ok-p
 	commit
       (or commit
@@ -844,7 +959,9 @@ Please see the manual for a complete description of Magit.
 	(delete-region (match-beginning 0) (match-end 0))
 	(goto-char (match-beginning 0))
 	(fixup-whitespace)
-	(magit-put-line-property 'magit-info (list 'commit commit))))
+	(magit-markup-item (line-beginning-position)
+			   (line-beginning-position 2)
+			   'commit commit)))
     (forward-line)))
 
 (defun magit-log (range)
@@ -927,13 +1044,14 @@ Please see the manual for a complete description of Magit.
       (let ((inhibit-read-only t))
 	(goto-char (point-min))
 	(while (not (eobp))
-	  (let ((info (get-text-property (point) 'magit-info))
+	  (let ((item (get-text-property (point) 'magit-item))
 		(next-change (or (next-single-property-change (point)
-							      'magit-info)
+							      'magit-item)
 				 (point-max))))
-	    (if (and info (eq (car info) 'commit))
+	    (if (and item (eq (magit-item-type item) 'commit))
 		(put-text-property (point) next-change
-				   'face (if (equal marked (cadr info))
+				   'face (if (equal marked
+						    (magit-item-info item))
 					     '(:foreground "red")
 					   nil)))
 	    (goto-char next-change)))))))
@@ -944,44 +1062,60 @@ Please see the manual for a complete description of Magit.
     (if (not (eq (current-buffer) status-buffer))
 	(magit-refresh-marks-in-buffer status-buffer))))
 
-(defun magit-mark-thing-at-point ()
+(defun magit-mark-item ()
   (interactive)
   (magit-set-marked-object (magit-commit-at-point))
   (magit-refresh-marks))
 
 ;;; Miscellaneous
 
-(defun magit-ignore-thing-at-point ()
+(defun magit-ignore-item ()
   (interactive)
-  (let ((info (get-char-property (point) 'magit-info)))
-    (if info
-	(case (car info)
-	  ((other-file)
-	   (append-to-file (concat "/" (cadr info) "\n") nil ".gitignore")
+  (let ((item (magit-get-item)))
+    (if item
+	(case (magit-item-type item)
+	  ((untracked-file)
+	   (append-to-file (concat "/" (magit-item-info item) "\n")
+			   nil ".gitignore")
 	   (magit-update-status (magit-find-status-buffer)))))))
 
-(defun magit-visit-thing-at-point ()
+(defun magit-discard-item ()
   (interactive)
-  (let ((info (get-char-property (point) 'magit-info)))
-    (if info
-	(case (car info)
-	  ((other-file)
-	   (find-file (cadr info)))
+  (let ((item (magit-get-item)))
+    (if item
+	(case (magit-item-type item)
+	  ((untracked-file)
+	   (let ((file (magit-item-info item)))
+	     (if (yes-or-no-p (format "Delete file %s? " file))
+		 (magit-run "rm" file))))))))
+
+(defun magit-visit-item ()
+  (interactive)
+  (let ((item (magit-get-item)))
+    (if item
+	(case (magit-item-type item)
+	  ((untracked-file)
+	   (find-file (magit-item-info item)))
 	  ((diff hunk)
-	   (let ((file (magit-diff-info-file info))
-		 (line (if (eq (car info) 'hunk)
-			   (magit-hunk-target-line info)
-			 (magit-diff-info-position info))))
+	   (let ((file (magit-diff-or-hunk-item-file item))
+		 (line (if (eq (magit-item-type item) 'hunk)
+			   (magit-hunk-item-target-line item)
+			 (magit-diff-item-position item))))
 	     (find-file file)
 	     (if line
 		 (goto-line line))))
 	  ((commit)
 	   (magit-show-commit))))))
 
-(defun magit-describe-thing-at-point ()
+(defun magit-describe-item ()
   (interactive)
-  (let ((info (get-char-property (point) 'magit-info)))
-    (message "Thing: %s" info)))
+  (let ((item (magit-get-item)))
+    (message "Item: %s %s-%s %S"
+	     (magit-item-type item)
+	     (magit-item-beginning item)
+	     (magit-item-ending item)
+	     (magit-item-info item))))
+
 
 (provide 'magit)
 ;;; magit.el ends here
