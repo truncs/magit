@@ -39,8 +39,9 @@
 ;; - Equivalent of interactive rebase
 ;; - 'Subsetting', only looking at a subset of all files.
 ;; - Detect and handle renames and copies.
-;; - Show a given file at the commit under point in the history?
 ;; - `c' in status should be a no-op if nothing is staged
+;; - Untracked directories should show one entry, not all contents
+;; - `n' and `p' at the end of the status buffer shouldn't error
 
 (require 'cl)
 (require 'parse-time)
@@ -99,7 +100,10 @@ Many Magit faces inherit from this one by default."
   :group 'magit)
 
 (defface magit-item-highlight
-  '((t :background "gray95"))
+  '((((class color) (background light))
+     :background "gray95")
+    (((class color) (background dark))
+     :background "dim gray"))
   "Face for highlighting the current item."
   :group 'magit)
 

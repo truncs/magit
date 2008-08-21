@@ -22,4 +22,5 @@
 /autom4te.cache/
 /magit-0.6.tar.gz
 *.elc
+.emacs-project
 *~
