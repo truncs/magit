@@ -40,7 +40,6 @@
 ;; - 'Subsetting', only looking at a subset of all files.
 ;; - Detect and handle renames and copies.
 ;; - Show a given file at the commit under point in the history?
-;; - Maybe use after-save-hooks to refresh the status buffer?
 ;; - `c' in status should be a no-op if nothing is staged
 
 (require 'cl)
@@ -271,6 +270,9 @@ Many Magit faces inherit from this one by default."
 (defvar magit-highlighted-item nil)
 
 (defvar magit-log-edit-hook nil)
+
+(defvar magit-auto-update nil
+  "Make every save to potentially update the status buffer where applicable.")
 
 (defun magit-highlight-item ()
   (let ((item (magit-get-item)))
@@ -1068,6 +1070,19 @@ Please see the manual for a complete description of Magit.
   (interactive)
   (magit-set-marked-object (magit-commit-at-point))
   (magit-refresh-marks))
+
+;;; Auto-update
+
+(add-hook 'after-save-hook 'magit-maybe-update-status)
+
+(defun magit-maybe-update-status ()
+  "Update the status buffer for the current buffer if there is one."
+  (when magit-auto-update
+    ;; TODO: is it quicker to just check (vc-git-registered (buffer-file-name)))?
+    (let ((buf (magit-find-status-buffer
+                (magit-get-top-dir (file-name-directory (buffer-file-name))))))
+      (if buf
+        (magit-update-status buf)))))
 
 ;;; Miscellaneous
 
