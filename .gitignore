@@ -17,6 +17,7 @@
 /magit.info
 /missing
 /mkinstalldirs
+/test/test-repo/*
 /texinfo.tex
 /debian/magit/
 /autom4te.cache/
