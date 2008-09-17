@@ -13,9 +13,11 @@ Magit can be installed with the popular recipe of
    $ make install
 
 This will put magit.el into /usr/local/share/emacs/site-lisp, where
-Emacs should be able to find it.  Then add
+Emacs should be able to find it.  Alternatively you could just copy
+magit.el into ~/.emacs.d to install it only for yourself rather than
+system-wide. Then add
 
-      (require 'magit)
+   (autoload 'magit-status "magit" "Show status of git repository." t)
 
 to your .emacs file.
 

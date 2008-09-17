@@ -46,6 +46,7 @@
 ;; - `c' in status should be a no-op if nothing is staged
 ;; - Untracked directories should show one entry, not all contents
 ;; - `n' and `p' at the end of the status buffer shouldn't error
+;; - "To push" should grok git-svn
 
 (require 'cl)
 (require 'parse-time)
