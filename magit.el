@@ -48,8 +48,6 @@
 ;; - Recover more lost performance from the section rewrite.
 ;; - Equivalent of git-wtf, http://git-wt-commit.rubyforge.org/#git-wtf
 ;; - 'Subsetting', only looking at a subset of all files.
-;; - Detect and handle renames and copies.
-;; - `c' in status should be a no-op if nothing is staged
 ;; - Untracked directories should show one entry, not all contents
 ;; - `n' and `p' at the end of the status buffer shouldn't error
 
@@ -1796,17 +1794,6 @@ Please see the manual for a complete description of Magit.
 (defun magit-log-head ()
   (interactive)
   (magit-log "HEAD"))
-
-(defun magit-amend ()
-  (interactive)
-  (magit-log-edit)
-  ;; TODO: should get this from git itself; this could be inaccurate.
-  (insert-file ".git/magit-log")
-  (local-set-key (kbd "C-c C-c") 'magit-log-edit-commit-amend))
-
-(defun magit-log-edit-commit-amend ()
-  (interactive)
-  (magit-log-edit-commit "--amend"))
 
 ;;; Reflog
 
