@@ -1860,7 +1860,7 @@ Please see the manual for a complete description of Magit.
     (let ((buf (magit-find-status-buffer
                 (magit-get-top-dir (file-name-directory (buffer-file-name))))))
       (if buf
-        (magit-update-status buf)))))
+          (magit-refresh buf)))))
 
 ;;; Miscellaneous
 
