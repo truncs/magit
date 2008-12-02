@@ -24,3 +24,13 @@
 *.elc
 .emacs-project
 *~
+/magit.aux
+/magit.cp
+/magit.dvi
+/magit.fn
+/magit.ky
+/magit.log
+/magit.pg
+/magit.toc
+/magit.tp
+/magit.vr
